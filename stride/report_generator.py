@@ -202,10 +202,19 @@ def main() -> None:
         "--nome-projeto", default="Análise de Arquitetura", help="Nome do projeto/arquitetura"
     )
     parser.add_argument("--output-dir", default=None, help="Diretório de saída do relatório")
+    parser.add_argument(
+        "--pdf", action="store_true", help="Também exporta o relatório em PDF"
+    )
     args = parser.parse_args()
 
     caminho_saida = gerar_relatorio(args.input, args.nome_projeto, args.output_dir)
     print(f"Relatório gerado: {caminho_saida}")
+
+    if args.pdf:
+        from stride.pdf_export import exportar_para_pdf
+
+        caminho_pdf = exportar_para_pdf(caminho_saida)
+        print(f"PDF gerado: {caminho_pdf}")
 
 
 if __name__ == "__main__":

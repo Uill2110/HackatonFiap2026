@@ -173,12 +173,14 @@ Já implementado:
 - [x] Estrutura de diretórios, `requirements.txt`, `.env.example`, `.gitignore`, `README.md`
 - [x] `stride/knowledge_base.py` — mapeamento componente → ameaças STRIDE (11 componentes do MVP)
 - [x] **Detecção supervisionada com YOLOv8** (substituiu o Claude Vision):
-  - [x] `model/download_dataset.py` — baixa dataset anotado do Roboflow Universe (formato YOLOv8)
-  - [x] `model/class_mapping.py` — traduz classe YOLO → chave da knowledge_base
-  - [x] `model/train.py` — treina o YOLOv8 na GPU e salva `best.pt` em `MODEL_WEIGHTS_PATH`
-  - [x] `model/predict.py` — inferência via modelo treinado (mesmo contrato de retorno)
+  - [x] `model/download_dataset.py` — baixa dataset de ícones AWS do Roboflow Universe (formato YOLOv8)
+  - [x] `model/class_mapping.py` — traduz classe AWS → chave da knowledge_base (regras por palavra-chave)
+  - [x] `model/generate_synthetic.py` — gera diagramas sintéticos (ícones em canvas) p/ o modelo aprender a localizar múltiplos componentes; peça central da detecção em diagramas reais
+  - [x] `model/train.py` — treina o YOLOv8 na GPU (imgsz 1024, `workers=0`/`plots=False` no Windows) e salva `best.pt` em `MODEL_WEIGHTS_PATH`
+  - [x] `model/predict.py` — inferência via modelo treinado em `imgsz=1024` (mesmo contrato de retorno)
 - [x] `stride/report_generator.py` — pipeline completo (detecção → STRIDE → resumo/recomendações via Claude → Markdown)
-- [x] `app/streamlit_app.py` — upload de imagem, geração e exibição/download do relatório
+- [x] `stride/pdf_export.py` — exportação do relatório Markdown para PDF (markdown → HTML → xhtml2pdf); CLI `--pdf` e botão no Streamlit
+- [x] `app/streamlit_app.py` — upload de imagem, geração e exibição/download do relatório (.md e .pdf)
 - [x] `api/main.py` + `api/routes/analyze.py` — endpoints `POST /analyze` (JSON), `POST /analyze/download` (arquivo `.md`) e `GET /health`, expondo `stride.report_generator.gerar_relatorio`
 
 Pendente:
@@ -188,7 +190,7 @@ Pendente:
 - [ ] Obter/posicionar imagens de teste em `data/test/` (`arquitetura_aws.png`, `arquitetura_azure.png`)
 - [ ] Testar pipeline ponta a ponta com as 2 arquiteturas (AWS e Azure)
 - [ ] Validar relatório gerado e ajustar `stride/templates/report_template.md` se necessário
-- [ ] Exportação do relatório para PDF
+- [x] Exportação do relatório para PDF (`stride/pdf_export.py`)
 - [ ] Vídeo de até 15 minutos explicando a solução
 
 ## Notas de execução

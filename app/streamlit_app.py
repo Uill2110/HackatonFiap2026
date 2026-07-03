@@ -91,19 +91,35 @@ def _processar_imagem(arquivo_enviado, nome_projeto: str) -> Path:
 
 
 def _exibir_resultado(caminho_relatorio: Path) -> None:
-    """Exibe o conteúdo do relatório e botão de download.
+    """Exibe o conteúdo do relatório e botões de download (.md e .pdf).
 
     Args:
         caminho_relatorio: Caminho do arquivo Markdown gerado.
     """
+    from stride.pdf_export import exportar_para_pdf
+
     conteudo = caminho_relatorio.read_text(encoding="utf-8")
 
-    st.download_button(
-        label="Baixar relatório (.md)",
-        data=conteudo,
-        file_name=caminho_relatorio.name,
-        mime="text/markdown",
-    )
+    col_md, col_pdf = st.columns(2)
+    with col_md:
+        st.download_button(
+            label="Baixar relatório (.md)",
+            data=conteudo,
+            file_name=caminho_relatorio.name,
+            mime="text/markdown",
+        )
+    with col_pdf:
+        try:
+            caminho_pdf = exportar_para_pdf(caminho_relatorio)
+            st.download_button(
+                label="Baixar relatório (.pdf)",
+                data=caminho_pdf.read_bytes(),
+                file_name=caminho_pdf.name,
+                mime="application/pdf",
+            )
+        except Exception as erro:  # noqa: BLE001 - exibido ao usuário final
+            logger.exception("Falha ao exportar PDF")
+            st.warning(f"Não foi possível gerar o PDF: {erro}")
 
     st.markdown("---")
     st.markdown(conteudo)
