@@ -7,8 +7,14 @@ Claude API, e exibe o resultado na tela com opção de download.
 """
 
 import logging
+import sys
 import tempfile
 from pathlib import Path
+
+# Garante que a raiz do projeto esteja no sys.path. Necessário porque
+# `streamlit run app/streamlit_app.py` adiciona a pasta `app/` (e não a raiz)
+# ao path, o que quebraria os imports absolutos `stride`/`model`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import streamlit as st
 from dotenv import load_dotenv

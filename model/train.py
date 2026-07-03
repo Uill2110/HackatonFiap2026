@@ -47,6 +47,7 @@ def treinar(
     imgsz: int = 640,
     batch: int = 8,
     device: str = "0",
+    workers: int = 0,
     destino_pesos: str | None = None,
 ) -> Path:
     """Treina o modelo YOLOv8 e salva os melhores pesos no destino configurado.
@@ -58,6 +59,8 @@ def treinar(
         imgsz: Tamanho da imagem de entrada.
         batch: Tamanho do batch (mantenha baixo em GPUs com pouca VRAM).
         device: Dispositivo de treino ("0" para a primeira GPU, "cpu" para CPU).
+        workers: Nº de processos do DataLoader. Use 0 no Windows para evitar
+            o erro de paging file (WinError 1455) ao recarregar as DLLs do CUDA.
         destino_pesos: Caminho final para copiar o `best.pt`. Se None, usa
             MODEL_WEIGHTS_PATH (.env) ou o padrão do projeto.
 
@@ -82,6 +85,8 @@ def treinar(
         imgsz=imgsz,
         batch=batch,
         device=device,
+        workers=workers,
+        plots=False,  # evita crash em matplotlib/seaborn no Windows (pagefile/DLLs)
         project="model/runs",
         name="stride_detector",
         exist_ok=True,
@@ -101,14 +106,17 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Treina o detector YOLOv8 de componentes.")
     parser.add_argument(
         "--data",
-        default="data/annotated/aws-icon-detection/dataset_stride.yaml",
-        help="Caminho do dataset.yaml consolidado (ver model/prepare_dataset.py)",
+        default="data/annotated/synthetic/dataset_stride.yaml",
+        help="Caminho do dataset.yaml (ver model/generate_synthetic.py)",
     )
-    parser.add_argument("--epochs", type=int, default=50, help="Número de épocas")
+    parser.add_argument("--epochs", type=int, default=60, help="Número de épocas")
     parser.add_argument("--model", default="yolov8n.pt", help="Modelo base pré-treinado")
-    parser.add_argument("--imgsz", type=int, default=640, help="Tamanho da imagem de entrada")
-    parser.add_argument("--batch", type=int, default=8, help="Tamanho do batch")
+    parser.add_argument("--imgsz", type=int, default=1024, help="Tamanho da imagem de entrada")
+    parser.add_argument("--batch", type=int, default=6, help="Tamanho do batch")
     parser.add_argument("--device", default="0", help="Device de treino ('0' GPU, 'cpu')")
+    parser.add_argument(
+        "--workers", type=int, default=0, help="Workers do DataLoader (0 no Windows)"
+    )
     parser.add_argument("--output", default=None, help="Caminho de saída dos pesos (best.pt)")
     args = parser.parse_args()
 
@@ -119,6 +127,7 @@ def main() -> None:
         imgsz=args.imgsz,
         batch=args.batch,
         device=args.device,
+        workers=args.workers,
         destino_pesos=args.output,
     )
     print(f"Modelo treinado salvo em: {destino}")

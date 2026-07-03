@@ -27,6 +27,9 @@ logger = logging.getLogger(__name__)
 
 PESOS_PADRAO = "model/weights/best.pt"
 CONFIANCA_MINIMA = 0.25
+# Resolução de inferência: deve casar com a do treino (ícones são pequenos;
+# no default 640 do YOLO eles se perdem em diagramas grandes).
+IMGSZ_INFERENCIA = 1024
 
 EXTENSOES_SUPORTADAS: set[str] = {".png", ".jpg", ".jpeg", ".webp"}
 
@@ -67,13 +70,16 @@ def _montar_observacoes(contagem: Counter) -> str:
 
 
 def detectar_componentes(
-    caminho_imagem: str | Path, confianca_minima: float = CONFIANCA_MINIMA
+    caminho_imagem: str | Path,
+    confianca_minima: float = CONFIANCA_MINIMA,
+    imgsz: int = IMGSZ_INFERENCIA,
 ) -> dict:
     """Detecta componentes de arquitetura em uma imagem usando YOLOv8.
 
     Args:
         caminho_imagem: Caminho para a imagem do diagrama de arquitetura.
         confianca_minima: Confiança mínima para considerar uma detecção.
+        imgsz: Resolução de inferência (deve casar com a do treino).
 
     Returns:
         Dicionário com "componentes_detectados" (lista de chaves válidas da
@@ -98,7 +104,9 @@ def detectar_componentes(
     modelo = YOLO(str(pesos))
 
     logger.info("Executando inferência em %s", caminho)
-    resultados = modelo.predict(source=str(caminho), conf=confianca_minima, verbose=False)
+    resultados = modelo.predict(
+        source=str(caminho), conf=confianca_minima, imgsz=imgsz, verbose=False
+    )
 
     contagem: Counter = Counter()
     for resultado in resultados:
@@ -131,9 +139,12 @@ def main() -> None:
     parser.add_argument(
         "--conf", type=float, default=CONFIANCA_MINIMA, help="Confiança mínima da detecção"
     )
+    parser.add_argument(
+        "--imgsz", type=int, default=IMGSZ_INFERENCIA, help="Resolução de inferência"
+    )
     args = parser.parse_args()
 
-    resultado = detectar_componentes(args.image, confianca_minima=args.conf)
+    resultado = detectar_componentes(args.image, confianca_minima=args.conf, imgsz=args.imgsz)
     print(json.dumps(resultado, indent=2, ensure_ascii=False))
 
 

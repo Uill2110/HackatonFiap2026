@@ -7,8 +7,10 @@ __pycache__/
 model/weights/*.pt
 data/raw/*
 data/annotated/*
+data/test/*
 !data/raw/.gitkeep
 !data/annotated/.gitkeep
+!data/test/.gitkeep
 docs/exemplos_relatorio/*
 !docs/exemplos_relatorio/.gitkeep
 .DS_Store
@@ -16,6 +18,7 @@ docs/exemplos_relatorio/*
 # Pesos de modelo (base e treinados) e artefatos de treino
 *.pt
 model/runs/
+runs/
 
 # Cache do uv (redirecionado para o projeto)
 .uv-cache/
