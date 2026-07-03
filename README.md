@@ -63,8 +63,8 @@ streamlit run app/streamlit_app.py
 # API
 uvicorn api.main:app --reload
 
-# Geração de relatório via linha de comando
-python -m stride.report_generator --input data/test/arquitetura_aws.png
+# Geração de relatório via linha de comando (use --pdf para exportar também em PDF)
+python -m stride.report_generator --input data/test/arquitetura_aws.png --pdf
 
 # Detecção de componentes isolada (apenas inferência)
 python -m model.predict --image data/test/arquitetura_aws.png
