@@ -1,0 +1,21 @@
+venv/
+.venv/
+.uv-python/
+__pycache__/
+*.pyc
+.env
+model/weights/*.pt
+data/raw/*
+data/annotated/*
+!data/raw/.gitkeep
+!data/annotated/.gitkeep
+docs/exemplos_relatorio/*
+!docs/exemplos_relatorio/.gitkeep
+.DS_Store
+
+# Pesos de modelo (base e treinados) e artefatos de treino
+*.pt
+model/runs/
+
+# Cache do uv (redirecionado para o projeto)
+.uv-cache/

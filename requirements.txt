@@ -1,0 +1,17 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+streamlit==1.38.0
+anthropic==0.34.2
+python-dotenv==1.0.1
+pydantic==2.9.2
+pillow==10.4.0
+python-multipart==0.0.9
+markdown==3.7
+
+# Detecção supervisionada (YOLOv8)
+# IMPORTANTE: instale o torch com CUDA ANTES deste arquivo, senão o pip
+# instala a versão CPU-only. Use um índice CUDA com wheels para o seu Python
+# (os wheels cu121 foram descontinuados no Python 3.12; use cu124):
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+ultralytics==8.3.0
+roboflow==1.1.48
