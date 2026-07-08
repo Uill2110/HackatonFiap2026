@@ -1,217 +1,108 @@
-# CLAUDE.md — Hackathon: Modelagem de Ameaças com IA (STRIDE)
+# CLAUDE.md
 
-## Visão geral do projeto
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Sistema de MVP que recebe uma imagem de diagrama de arquitetura de software e gera automaticamente um **Relatório de Modelagem de Ameaças** baseado na metodologia STRIDE.
+## O que é o projeto
 
-**Contexto:** Hackathon FIAP POS TECH — Fase 5  
-**Empresa fictícia:** FIAP Software Security  
-**Objetivo:** Validar a viabilidade de uma feature de detecção supervisionada de ameaças
+MVP do Hackathon FIAP POS TECH — Fase 5 (empresa fictícia "FIAP Software Security").
+Recebe uma imagem de diagrama de arquitetura e gera um **Relatório de Modelagem de
+Ameaças STRIDE**. A detecção de componentes é **supervisionada com YOLOv8**; a Claude
+API entra apenas no fim, para o resumo executivo e as recomendações do relatório.
 
----
+## Pipeline (o coração do sistema)
 
-## Stack tecnológica
+O fluxo vive em `stride/report_generator.py::gerar_relatorio` e encadeia 4 etapas.
+Entender esse encadeamento evita a maioria dos erros:
 
-| Camada | Tecnologia |
-|---|---|
-| Linguagem principal | Python 3.11+ |
-| Visão computacional | YOLOv8 (ultralytics) ou GPT-4 Vision / Claude via API |
-| LLM para relatório | Anthropic Claude API (claude-sonnet-4-6) |
-| Backend / API | FastAPI |
-| Interface web | Streamlit (MVP simples) |
-| Anotação de dataset | Roboflow ou LabelImg |
-| Controle de versão | Git + GitHub |
-| Ambiente | Python venv + requirements.txt |
+1. **Detecção** — `model/predict.py::detectar_componentes(imagem)` roda o YOLOv8 e
+   retorna `{"componentes_detectados": [chaves...], "observacoes": str}`. Esse **contrato
+   de retorno é fixo**: API, Streamlit e o gerador dependem dele. As classes cruas do
+   modelo passam por `model/class_mapping.py::mapear_classe` para virar chaves da
+   knowledge_base; classes sem correspondência são descartadas.
+2. **Mapeamento STRIDE** — `stride/knowledge_base.py::mapear_componentes` converte as
+   chaves em ameaças + contramedidas (dado 100% estático, sem IA).
+3. **Enriquecimento via Claude** — `_gerar_resumo_e_recomendacoes` chama a API
+   (modelo `claude-sonnet-4-6`, ver constante `MODELO_TEXTO`). O prompt **exige** que a
+   resposta contenha o literal `## Recomendações Prioritárias` como separador — se faltar,
+   levanta `RuntimeError`. Ao mexer nesse prompt, mantenha esse contrato.
+4. **Template** — `stride/templates/report_template.md` é preenchido por substituição de
+   placeholders (`{{projeto}}`, `{{data}}`, `{{arquitetura}}`, `{{lista_componentes}}`,
+   `{{analise_ameacas}}`, `{{resumo}}`, `{{recomendacoes}}`). Adicionar um placeholder no
+   template exige um `.replace(...)` correspondente no gerador.
 
----
+`stride/pdf_export.py` converte o Markdown final em PDF (markdown → HTML → xhtml2pdf).
 
-## Estrutura do projeto
+### As três chaves que amarram tudo
 
-```
-stride-threat-modeler/
-├── CLAUDE.md                  # Este arquivo
-├── README.md
-├── requirements.txt
-├── .env.example               # Variáveis de ambiente (nunca commitar .env)
-│
-├── data/
-│   ├── raw/                   # Imagens brutas de arquiteturas
-│   ├── annotated/             # Dataset anotado (YOLO format)
-│   └── test/                  # Arquiteturas de avaliação do hackathon
-│       ├── arquitetura_aws.png
-│       └── arquitetura_azure.png
-│
-├── model/
-│   ├── train.py               # Script de treinamento YOLOv8
-│   ├── predict.py             # Inferência: imagem → componentes detectados
-│   └── weights/               # Pesos do modelo treinado (.pt)
-│
-├── stride/
-│   ├── knowledge_base.py      # Mapeamento componente → ameaças STRIDE
-│   ├── report_generator.py    # Gera relatório usando Claude API
-│   └── templates/
-│       └── report_template.md
-│
-├── api/
-│   ├── main.py                # FastAPI app
-│   └── routes/
-│       └── analyze.py         # POST /analyze → relatório STRIDE
-│
-├── app/
-│   └── streamlit_app.py       # Interface web para upload e visualização
-│
-└── docs/
-    ├── fluxo_desenvolvimento.md
-    └── exemplos_relatorio/
-```
+`class_mapping.py`, `knowledge_base.py` e o `predict.py` compartilham o mesmo vocabulário
+de ~11 chaves de componente (`usuario`, `api_gateway`, `banco_dados`, ...). `class_mapping`
+tem um `_validar_mapeamento()` que roda no import e falha se alguma regra apontar para uma
+chave inexistente na knowledge_base. **Ao adicionar um componente, atualize os três lugares.**
 
----
+## Como a detecção é treinada (não-óbvio)
 
-## Fluxo principal do sistema
+O dataset público do Roboflow (`aws-icon-detection`) tem **um ícone por imagem** — treinar
+direto nele só ensina a classificar um ícone que preenche a tela, não a *localizar* vários
+num diagrama. Por isso há duas rotas para produzir o `dataset_stride.yaml` de treino:
 
-```
-[Imagem de diagrama]
-        ↓
-[Modelo de detecção] → identifica componentes (usuário, API, DB, firewall...)
-        ↓
-[Base de conhecimento STRIDE] → mapeia ameaças por componente
-        ↓
-[Claude API] → enriquece com linguagem natural e contramedidas
-        ↓
-[Relatório STRIDE] → PDF ou Markdown estruturado
-```
+- `model/generate_synthetic.py` — **rota recomendada** (usada no README). Cola os ícones
+  como "carimbos" em posições/escalas aleatórias num canvas, com linhas simulando conexões,
+  gerando bounding boxes reais de detecção multi-componente.
+- `model/prepare_dataset.py` — apenas reescreve os rótulos originais consolidando as
+  centenas de classes AWS nas ~11 categorias STRIDE (mantém uma-imagem-por-ícone).
 
----
+Ambos consolidam via `class_mapping.mapear_classe` e emitem `dataset_stride.yaml`.
 
-## Metodologia STRIDE — referência rápida
+`imgsz=1024` é usado tanto no treino quanto na inferência **de propósito** — ícones são
+pequenos e se perdem no default 640 do YOLO. Se mudar num lado, mude no outro
+(`train.py` default e `predict.py::IMGSZ_INFERENCIA`).
 
-| Letra | Ameaça | Descrição |
-|---|---|---|
-| S | Spoofing | Falsificação de identidade |
-| T | Tampering | Adulteração de dados |
-| R | Repudiation | Negação de ações realizadas |
-| I | Information Disclosure | Exposição indevida de dados |
-| D | Denial of Service | Indisponibilidade do sistema |
-| E | Elevation of Privilege | Escalada de privilégios |
+## Comandos
 
----
-
-## Componentes de arquitetura suportados (MVP)
-
-- Usuário / cliente externo
-- API Gateway
-- Load Balancer
-- Servidor de aplicação
-- Banco de dados (RDS, SQL, NoSQL)
-- Cache (Redis, ElastiCache)
-- Fila de mensagens (SQS, RabbitMQ)
-- Serviço de autenticação (IAM, OAuth)
-- CDN / WAF / Shield
-- Storage (S3, Blob)
-- Serviço de monitoramento (CloudWatch, CloudTrail)
-
----
-
-## Comandos úteis
+Rode **sempre a partir da raiz do projeto** com o venv ativo. Os módulos usam imports
+absolutos (`from stride...`, `from model...`), então use `python -m`, nunca
+`python model/predict.py`.
 
 ```bash
-# Instalar dependências
-pip install -r requirements.txt
+# Preparar modelo (uma vez): baixar → gerar sintético → treinar
+python -m model.download_dataset
+python -m model.generate_synthetic
+python -m model.train --device 0            # salva best.pt em MODEL_WEIGHTS_PATH
 
-# Rodar interface web (Streamlit)
+# Usar o pipeline
+python -m stride.report_generator --input data/test/arquitetura_aws.png --pdf
+python -m model.predict --image data/test/arquitetura_aws.png   # só a detecção
 streamlit run app/streamlit_app.py
-
-# Rodar API FastAPI
-uvicorn api.main:app --reload
-
-# Treinar modelo YOLOv8
-python model/train.py --data data/annotated/dataset.yaml --epochs 50
-
-# Rodar inferência em imagem
-python model/predict.py --image data/test/arquitetura_aws.png
-
-# Gerar relatório STRIDE completo
-python stride/report_generator.py --input data/test/arquitetura_aws.png
+uvicorn api.main:app --reload               # POST /analyze, POST /analyze/download, GET /health
 ```
 
----
+Não há suíte de testes nem linter configurados no repo.
 
-## Variáveis de ambiente (.env)
+## Ambiente e gotchas de Windows/CUDA
 
-```
-ANTHROPIC_API_KEY=sk-...
-MODEL_WEIGHTS_PATH=model/weights/best.pt
-REPORT_OUTPUT_DIR=docs/exemplos_relatorio/
-```
+- **Ordem de instalação importa**: instale `torch`/`torchvision` com CUDA *antes* do
+  `requirements.txt`, senão o pip traz a versão CPU-only. Os wheels cu121 foram
+  descontinuados no Python 3.12 — use cu124:
+  `pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124`
+- **Treino no Windows**: `train.py` usa `workers=0` (evita `WinError 1455`/pagefile ao
+  recarregar DLLs do CUDA) e `plots=False` (evita crash em matplotlib/seaborn). Não
+  reative esses defaults sem necessidade.
+- Config sempre via `.env` (nunca hardcoded): `ANTHROPIC_API_KEY`, `ROBOFLOW_API_KEY`,
+  `MODEL_WEIGHTS_PATH`, `REPORT_OUTPUT_DIR`. O gerador falha cedo se a chave Anthropic
+  faltar; `predict.py` falha se `best.pt` não existir (modelo não treinado).
 
----
+## Convenções de código
 
-## Padrões de código
+- Docstrings e nomes de função/variável em **português**; type hints obrigatórios.
+- `logging` em vez de `print` no código de biblioteca; funções de responsabilidade única.
+- Dependências pesadas (`ultralytics`, `roboflow`) têm **import tardio** dentro das funções
+  que as usam — preserve esse padrão para não pagar o custo de import no resto do pipeline.
+- `metodologia STRIDE`: S(poofing), T(ampering), R(epudiation), I(nformation disclosure),
+  D(enial of service), E(levation of privilege).
 
-- Docstrings em português para funções principais
-- Type hints obrigatórios em todas as funções
-- Arquivos de configuração sempre via variáveis de ambiente (nunca hardcoded)
-- Nenhuma chave de API deve aparecer no código ou commits
-- Logs com `logging` (não `print`) em produção
-- Funções com responsabilidade única — máximo 40 linhas por função
+## Status / pendências do hackathon
 
----
-
-## Entregáveis do hackathon
-
-- [ ] Código no GitHub com README completo
-- [ ] `docs/fluxo_desenvolvimento.md` — documentação do fluxo
-- [ ] Vídeo de até 15 minutos explicando a solução
-- [ ] Sistema rodando nas 2 arquiteturas de teste (AWS e Azure)
-
----
-
-## Status atual (continuar a partir daqui)
-
-Já implementado:
-
-- [x] Estrutura de diretórios, `requirements.txt`, `.env.example`, `.gitignore`, `README.md`
-- [x] `stride/knowledge_base.py` — mapeamento componente → ameaças STRIDE (11 componentes do MVP)
-- [x] **Detecção supervisionada com YOLOv8** (substituiu o Claude Vision):
-  - [x] `model/download_dataset.py` — baixa dataset de ícones AWS do Roboflow Universe (formato YOLOv8)
-  - [x] `model/class_mapping.py` — traduz classe AWS → chave da knowledge_base (regras por palavra-chave)
-  - [x] `model/generate_synthetic.py` — gera diagramas sintéticos (ícones em canvas) p/ o modelo aprender a localizar múltiplos componentes; peça central da detecção em diagramas reais
-  - [x] `model/train.py` — treina o YOLOv8 na GPU (imgsz 1024, `workers=0`/`plots=False` no Windows) e salva `best.pt` em `MODEL_WEIGHTS_PATH`
-  - [x] `model/predict.py` — inferência via modelo treinado em `imgsz=1024` (mesmo contrato de retorno)
-- [x] `stride/report_generator.py` — pipeline completo (detecção → STRIDE → resumo/recomendações via Claude → Markdown)
-- [x] `stride/pdf_export.py` — exportação do relatório Markdown para PDF (markdown → HTML → xhtml2pdf); CLI `--pdf` e botão no Streamlit
-- [x] `app/streamlit_app.py` — upload de imagem, geração e exibição/download do relatório (.md e .pdf)
-- [x] `api/main.py` + `api/routes/analyze.py` — endpoints `POST /analyze` (JSON), `POST /analyze/download` (arquivo `.md`) e `GET /health`, expondo `stride.report_generator.gerar_relatorio`
-
-Pendente:
-
-- [ ] Instalar torch com CUDA + `requirements.txt` e configurar `.env` real (`ANTHROPIC_API_KEY`, `ROBOFLOW_API_KEY`)
-- [ ] Rodar `download_dataset` + ajustar `class_mapping` + `train` para gerar `best.pt` real
-- [ ] Obter/posicionar imagens de teste em `data/test/` (`arquitetura_aws.png`, `arquitetura_azure.png`)
-- [ ] Testar pipeline ponta a ponta com as 2 arquiteturas (AWS e Azure)
-- [ ] Validar relatório gerado e ajustar `stride/templates/report_template.md` se necessário
-- [x] Exportação do relatório para PDF (`stride/pdf_export.py`)
-- [ ] Vídeo de até 15 minutos explicando a solução
-
-## Notas de execução
-
-- `model/predict.py` e `stride/report_generator.py` usam imports absolutos
-  (`from model.predict import ...`, `from stride.knowledge_base import ...`).
-  Execute sempre a partir da raiz do projeto, com `python -m`:
-  ```bash
-  python -m model.download_dataset
-  python -m model.train --data data/annotated/dataset.yaml --epochs 50 --device 0
-  python -m stride.report_generator --input data/test/arquitetura_aws.png
-  python -m model.predict --image data/test/arquitetura_aws.png
-  streamlit run app/streamlit_app.py
-  ```
-
----
-
-## Notas importantes para o Claude Code
-
-- Priorize sempre o MVP funcional antes de otimizações
-- A detecção de componentes é **supervisionada com YOLOv8** (dataset do Roboflow → treino → inferência). O Claude API é usado apenas para o resumo executivo e as recomendações do relatório (`stride/report_generator.py`)
-- O relatório STRIDE deve ser gerado em Markdown e exportável como PDF
-- Todas as dependências devem estar em `requirements.txt`
-- O projeto deve rodar com um único comando após configurar o `.env`
+Implementado: knowledge_base, pipeline completo de detecção→relatório→PDF, API, Streamlit,
+scripts de dataset/treino. Pendente: rodar o treino real para gerar `best.pt`, posicionar
+`data/test/arquitetura_{aws,azure}.png`, validar ponta-a-ponta nas 2 arquiteturas, e o
+vídeo de até 15 min. Priorize o MVP funcional antes de otimizações.
