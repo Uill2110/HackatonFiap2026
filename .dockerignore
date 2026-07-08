@@ -1,0 +1,20 @@
+# Ambiente e caches
+.venv/
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+
+# Git / metadados
+.git/
+.gitignore
+
+# Segredos (injetados em runtime via env_file, não devem ir para a imagem)
+.env
+
+# Artefatos pesados (entram via volume, não pela imagem)
+data/annotated/
+data/raw/
+model/runs/
+docs/exemplos_relatorio/*.md
+docs/exemplos_relatorio/*.pdf

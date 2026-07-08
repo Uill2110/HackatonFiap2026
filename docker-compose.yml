@@ -1,0 +1,41 @@
+# Sobe a aplicação STRIDE Threat Modeler em dois serviços que compartilham a
+# mesma imagem: a interface Streamlit e a API FastAPI.
+#
+# Uso:
+#   docker compose up --build          # sobe Streamlit (:8501) + API (:8000)
+#   docker compose up streamlit        # só a interface
+#
+# Pré-requisitos:
+#   - .env preenchido (ANTHROPIC_API_KEY; ROBOFLOW_API_KEY só p/ treino)
+#   - model/weights/best.pt já treinado (montado via volume abaixo)
+#
+# Treino dentro do container (opcional, CPU-only, lento):
+#   docker compose run --rm streamlit python -m model.download_dataset
+#   docker compose run --rm streamlit python -m model.generate_synthetic --n-train 60 --n-val 15
+#   docker compose run --rm streamlit python -m model.train --device cpu --epochs 15 --batch 4
+
+services:
+  streamlit:
+    build: .
+    image: stride-threat-modeler
+    env_file: .env
+    ports:
+      - "8501:8501"
+    volumes:
+      # Pesos, dados e relatórios ficam fora da imagem (persistem no host)
+      - ./model/weights:/app/model/weights
+      - ./data:/app/data
+      - ./docs/exemplos_relatorio:/app/docs/exemplos_relatorio
+
+  api:
+    build: .
+    image: stride-threat-modeler
+    env_file: .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./model/weights:/app/model/weights
+      - ./data:/app/data
+      - ./docs/exemplos_relatorio:/app/docs/exemplos_relatorio
+    command: >
+      uvicorn api.main:app --host 0.0.0.0 --port 8000
