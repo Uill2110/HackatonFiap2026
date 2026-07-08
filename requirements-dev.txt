@@ -1,0 +1,4 @@
+# Dependências de desenvolvimento/teste (não necessárias em produção).
+# Os testes cobrem código puro (stride.knowledge_base, model.class_mapping) e
+# não exigem torch/ultralytics — por isso o CI instala apenas isto.
+pytest>=7.4
