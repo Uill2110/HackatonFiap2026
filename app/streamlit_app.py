@@ -7,6 +7,7 @@ Claude API, e exibe o resultado na tela com opção de download.
 """
 
 import logging
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -19,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import streamlit as st
 from dotenv import load_dotenv
 
+from stride.llm import PROVEDOR_PADRAO
 from stride.report_generator import gerar_relatorio
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -27,6 +29,31 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 st.set_page_config(page_title="STRIDE Threat Modeler", page_icon="🛡️", layout="wide")
+
+
+def _exibir_info_provedor() -> None:
+    """Mostra na barra lateral o provedor de LLM ativo e a chave esperada."""
+    provedor = os.environ.get("LLM_PROVIDER", PROVEDOR_PADRAO).strip().lower()
+    rotulos = {
+        "anthropic": ("Anthropic (Claude)", "ANTHROPIC_API_KEY"),
+        "openai": ("OpenAI (GPT)", "OPENAI_API_KEY"),
+    }
+
+    if provedor not in rotulos:
+        st.markdown(
+            f"---\n⚠️ `LLM_PROVIDER={provedor}` inválido no `.env`. "
+            "Use `anthropic` ou `openai`."
+        )
+        return
+
+    nome, chave = rotulos[provedor]
+    st.markdown(
+        f"---\n"
+        f"**Provedor de LLM:** {nome}\n\n"
+        f"Configure a variável `{chave}` no arquivo `.env`.\n\n"
+        "Para trocar de provedor, ajuste `LLM_PROVIDER` "
+        "(`anthropic` ou `openai`)."
+    )
 
 
 def main() -> None:
@@ -43,11 +70,7 @@ def main() -> None:
     with st.sidebar:
         st.header("Configurações")
         nome_projeto = st.text_input("Nome do projeto/arquitetura", value="Análise de Arquitetura")
-        st.markdown(
-            "---\n"
-            "Certifique-se de que a variável de ambiente "
-            "`ANTHROPIC_API_KEY` está configurada no arquivo `.env`."
-        )
+        _exibir_info_provedor()
 
     arquivo_enviado = st.file_uploader(
         "Diagrama de arquitetura", type=["png", "jpg", "jpeg", "webp"]
