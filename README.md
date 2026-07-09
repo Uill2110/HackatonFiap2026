@@ -98,6 +98,19 @@ usado automaticamente na inferência.
 > classes AWS para as chaves da knowledge_base — só precisa de ajuste se você
 > trocar de dataset.
 
+### Avaliação do modelo
+
+Para medir o desempenho do detector (mAP@50, mAP@50-95, precisão/recall por
+classe e matriz de confusão) sobre o split de validação:
+
+```bash
+python -m model.evaluate
+```
+
+As métricas são gravadas em `docs/avaliacao/metricas.json` e os gráficos em
+`docs/avaliacao/`. Os resultados e a discussão estão em
+[`docs/resultados.md`](docs/resultados.md).
+
 ## Uso
 
 > Rode **sempre a partir da raiz do projeto**, com o ambiente ativo
