@@ -23,6 +23,22 @@ cp .env.example .env          # preencher ANTHROPIC_API_KEY e ROBOFLOW_API_KEY
 > Com pip tradicional, troque `uv pip install` por `pip install` e `uv venv` por
 > `python -m venv .venv`.
 
+## Provedor de LLM (Claude ou OpenAI)
+
+O texto do relatório (resumo executivo e recomendações) pode ser gerado pela
+**Anthropic (Claude, padrão)** ou pela **OpenAI (GPT)** — quem não tem conta na
+Anthropic pode usar a OpenAI. A escolha é por variável de ambiente:
+
+```
+# .env
+LLM_PROVIDER=anthropic          # padrão; ou "openai"
+ANTHROPIC_API_KEY=sk-ant-...    # se LLM_PROVIDER=anthropic
+OPENAI_API_KEY=sk-...           # se LLM_PROVIDER=openai
+```
+
+A detecção de componentes (YOLOv8) é local e não depende do provedor. Detalhes
+e opções de modelo em [`docs/provedores_llm.md`](docs/provedores_llm.md).
+
 ## Detecção supervisionada (YOLOv8)
 
 A detecção de componentes usa um modelo **YOLOv8 treinado** (detecção
