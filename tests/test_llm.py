@@ -2,9 +2,13 @@
 Testes da abstração de provedor de LLM (`stride.llm`).
 
 Cobrem a seleção de provedor, os erros de configuração (chave ausente,
-provedor inválido) e o caminho da OpenAI usando um cliente fake — sem fazer
-nenhuma chamada de rede real.
+provedor inválido) e o caminho da OpenAI. Nenhum SDK real é necessário: o
+caminho da OpenAI é exercitado com um módulo `openai` fake registrado em
+`sys.modules`, então não há chamada de rede nem dependência do pacote `openai`.
 """
+
+import sys
+import types
 
 import pytest
 
@@ -22,6 +26,32 @@ def _isolar_ambiente(monkeypatch) -> None:
     ):
         monkeypatch.delenv(chave, raising=False)
     monkeypatch.setattr(llm, "load_dotenv", lambda *a, **k: None)
+
+
+def _registrar_openai_fake(monkeypatch, capturado: dict) -> None:
+    """Instala um módulo `openai` fake cujo cliente captura os argumentos da chamada."""
+
+    class _FakeCompletions:
+        def create(self, model, max_tokens, messages):
+            capturado["model"] = model
+            capturado["max_tokens"] = max_tokens
+            capturado["messages"] = messages
+            msg = type("Msg", (), {"content": "  resposta de teste  "})()
+            choice = type("Choice", (), {"message": msg})()
+            return type("Resp", (), {"choices": [choice]})()
+
+    class _FakeChat:
+        def __init__(self):
+            self.completions = _FakeCompletions()
+
+    class _FakeOpenAI:
+        def __init__(self, api_key):
+            capturado["api_key"] = api_key
+            self.chat = _FakeChat()
+
+    modulo_fake = types.ModuleType("openai")
+    modulo_fake.OpenAI = _FakeOpenAI
+    monkeypatch.setitem(sys.modules, "openai", modulo_fake)
 
 
 def test_provedor_padrao_e_anthropic() -> None:
@@ -54,36 +84,13 @@ def test_anthropic_sem_chave_levanta(monkeypatch) -> None:
 
 
 def test_openai_usa_cliente_e_modelo_corretos(monkeypatch) -> None:
-    """O caminho da OpenAI monta o cliente, chama o modelo padrão e lê a resposta.
-
-    Usa um cliente fake no lugar de `openai.OpenAI`, então não faz rede.
-    """
+    """O caminho da OpenAI monta o cliente, usa o modelo padrão e lê a resposta."""
     _isolar_ambiente(monkeypatch)
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-teste")
 
     capturado: dict = {}
-
-    class _FakeCompletions:
-        def create(self, model, max_tokens, messages):
-            capturado["model"] = model
-            capturado["max_tokens"] = max_tokens
-            capturado["messages"] = messages
-            msg = type("Msg", (), {"content": "  resposta de teste  "})()
-            choice = type("Choice", (), {"message": msg})()
-            return type("Resp", (), {"choices": [choice]})()
-
-    class _FakeChat:
-        completions = _FakeCompletions()
-
-    class _FakeOpenAI:
-        def __init__(self, api_key):
-            capturado["api_key"] = api_key
-            self.chat = _FakeChat()
-
-    import openai
-
-    monkeypatch.setattr(openai, "OpenAI", _FakeOpenAI)
+    _registrar_openai_fake(monkeypatch, capturado)
 
     resultado = llm.gerar_resposta("prompt-de-teste")
 
@@ -101,24 +108,7 @@ def test_openai_respeita_modelo_customizado(monkeypatch) -> None:
     monkeypatch.setenv("OPENAI_MODEL", "gpt-4o-mini")
 
     capturado: dict = {}
-
-    class _FakeCompletions:
-        def create(self, model, max_tokens, messages):
-            capturado["model"] = model
-            msg = type("Msg", (), {"content": "x"})()
-            choice = type("Choice", (), {"message": msg})()
-            return type("Resp", (), {"choices": [choice]})()
-
-    class _FakeChat:
-        completions = _FakeCompletions()
-
-    class _FakeOpenAI:
-        def __init__(self, api_key):
-            self.chat = _FakeChat()
-
-    import openai
-
-    monkeypatch.setattr(openai, "OpenAI", _FakeOpenAI)
+    _registrar_openai_fake(monkeypatch, capturado)
 
     llm.gerar_resposta("oi")
     assert capturado["model"] == "gpt-4o-mini"
