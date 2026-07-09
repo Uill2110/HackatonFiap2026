@@ -10,6 +10,7 @@ import logging
 import os
 import sys
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 # Garante que a raiz do projeto esteja no sys.path. Necessário porque
@@ -235,6 +236,48 @@ def _chips_componentes(nomes: list[str]) -> None:
     st.markdown(f'<div class="chips">{pills}</div>', unsafe_allow_html=True)
 
 
+def _listar_relatorios() -> list[Path]:
+    """Lista os relatórios já gerados, do mais recente para o mais antigo.
+
+    Returns:
+        Caminhos dos `.md` em REPORT_OUTPUT_DIR (vazio se o diretório não existir).
+    """
+    diretorio = Path(os.environ.get("REPORT_OUTPUT_DIR", "docs/exemplos_relatorio/"))
+    if not diretorio.is_dir():
+        return []
+    return sorted(
+        diretorio.glob("relatorio_stride_*.md"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+
+
+def _rotulo_relatorio(caminho: Path) -> str:
+    """Monta um rótulo legível (nome da arquitetura + data) para um relatório."""
+    nome = caminho.stem.replace("relatorio_stride_", "", 1)
+    data = datetime.fromtimestamp(caminho.stat().st_mtime).strftime("%d/%m/%Y %H:%M")
+    return f"{nome} · {data}"
+
+
+def _secao_recentes() -> None:
+    """Renderiza a seção de análises recentes com acesso aos relatórios já gerados."""
+    arquivos = _listar_relatorios()
+    if not arquivos:
+        return
+
+    st.markdown('<div class="sec">Análises recentes</div>', unsafe_allow_html=True)
+    st.caption(
+        f"{len(arquivos)} relatório(s) gerado(s) anteriormente. "
+        "Selecione um para reabrir e baixar."
+    )
+    opcoes = {_rotulo_relatorio(p): p for p in arquivos[:20]}
+    escolha = st.selectbox(
+        "Relatório anterior", ["—", *opcoes], label_visibility="collapsed"
+    )
+    if escolha != "—":
+        _exibir_resultado(opcoes[escolha])
+
+
 def main() -> None:
     """Renderiza a interface principal do Streamlit."""
     st.markdown(_CSS, unsafe_allow_html=True)
@@ -267,6 +310,7 @@ def main() -> None:
             'O modelo identifica os componentes e monta o relatório de ameaças.</p></div>',
             unsafe_allow_html=True,
         )
+        _secao_recentes()
         return
 
     col_prev, col_acao = st.columns([1.5, 1])
@@ -303,10 +347,15 @@ def _processar_imagem(arquivo_enviado, nome_projeto: str) -> Path:
     Returns:
         Caminho do arquivo Markdown do relatório gerado.
     """
-    sufixo = Path(arquivo_enviado.name).suffix or ".png"
-    with tempfile.NamedTemporaryFile(suffix=sufixo, delete=False) as arquivo_temp:
-        arquivo_temp.write(arquivo_enviado.getvalue())
-        caminho_imagem = Path(arquivo_temp.name)
+    # Preserva o nome original do upload no arquivo temporário: o relatório é
+    # nomeado pelo stem da imagem, então isso mantém a lista de recentes legível
+    # (ex.: "arquitetura.png" -> relatorio_stride_arquitetura.md).
+    origem = Path(arquivo_enviado.name)
+    nome_base = origem.stem or "diagrama"
+    sufixo = origem.suffix or ".png"
+    diretorio_temp = Path(tempfile.mkdtemp())
+    caminho_imagem = diretorio_temp / f"{nome_base}{sufixo}"
+    caminho_imagem.write_bytes(arquivo_enviado.getvalue())
 
     return gerar_relatorio(caminho_imagem, nome_projeto=nome_projeto)
 
