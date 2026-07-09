@@ -1,0 +1,12 @@
+# Tema do STRIDE Threat Modeler (console de segurança, dark slate + índigo).
+[theme]
+base = "dark"
+primaryColor = "#6366F1"
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#161A2B"
+textColor = "#E6E8F0"
+font = "sans serif"
+
+[server]
+# Silencia a coleta de e-mail no primeiro run e evita abrir o navegador sozinho.
+headless = true
