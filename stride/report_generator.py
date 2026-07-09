@@ -15,16 +15,15 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
 from model.predict import detectar_componentes
 from stride.knowledge_base import CATEGORIAS_STRIDE, mapear_componentes
+from stride.llm import gerar_resposta
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-MODELO_TEXTO = "claude-sonnet-4-6"
 TEMPLATE_PATH = Path(__file__).parent / "templates" / "report_template.md"
 
 
@@ -72,12 +71,14 @@ def _formatar_analise_ameacas(componentes: dict) -> str:
 
 
 def _gerar_resumo_e_recomendacoes(
-    client: Anthropic, componentes: dict, observacoes: str
+    componentes: dict, observacoes: str
 ) -> tuple[str, str]:
-    """Usa a Claude API para gerar resumo executivo e recomendações.
+    """Usa o provedor de LLM configurado para gerar resumo e recomendações.
+
+    O provedor (Anthropic/Claude ou OpenAI/GPT) é escolhido por variável de
+    ambiente em `stride.llm`; esta função é agnóstica ao provedor.
 
     Args:
-        client: Cliente da Anthropic API já configurado.
         componentes: Dicionário componente -> dados STRIDE identificados.
         observacoes: Observações textuais geradas pela etapa de detecção.
 
@@ -110,12 +111,7 @@ def _gerar_resumo_e_recomendacoes(
         "Executivo' e '## Recomendações Prioritárias' como separadores."
     )
 
-    resposta = client.messages.create(
-        model=MODELO_TEXTO,
-        max_tokens=1500,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    texto = resposta.content[0].text.strip()
+    texto = gerar_resposta(prompt)
 
     if "## Recomendações Prioritárias" not in texto:
         raise RuntimeError(f"Resposta do modelo fora do formato esperado: {texto}")
@@ -147,12 +143,10 @@ def gerar_relatorio(
 
     Raises:
         FileNotFoundError: Se a imagem ou o template não existirem.
-        RuntimeError: Se a ANTHROPIC_API_KEY não estiver configurada.
+        RuntimeError: Se a chave de API do provedor de LLM configurado
+            (`LLM_PROVIDER`) não estiver definida.
     """
     load_dotenv()
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY não definida no ambiente (.env)")
 
     if not TEMPLATE_PATH.exists():
         raise FileNotFoundError(f"Template não encontrado: {TEMPLATE_PATH}")
@@ -168,10 +162,8 @@ def gerar_relatorio(
     componentes = mapear_componentes(deteccao.get("componentes_detectados", []))
     observacoes = deteccao.get("observacoes", "")
 
-    client = Anthropic(api_key=api_key)
-
-    logger.info("Gerando resumo executivo e recomendações via %s", MODELO_TEXTO)
-    resumo, recomendacoes = _gerar_resumo_e_recomendacoes(client, componentes, observacoes)
+    logger.info("Gerando resumo executivo e recomendações via LLM configurado")
+    resumo, recomendacoes = _gerar_resumo_e_recomendacoes(componentes, observacoes)
 
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     relatorio = (

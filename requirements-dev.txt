@@ -1,4 +1,7 @@
 # Dependências de desenvolvimento/teste (não necessárias em produção).
-# Os testes cobrem código puro (stride.knowledge_base, model.class_mapping) e
-# não exigem torch/ultralytics — por isso o CI instala apenas isto.
+# Os testes cobrem código puro e não exigem torch/ultralytics/openai:
+#   - pytest: runner
+#   - python-dotenv: importado por stride.llm (load_dotenv); o caminho da
+#     OpenAI é testado com um módulo fake, sem instalar o SDK real.
 pytest>=7.4
+python-dotenv==1.0.1

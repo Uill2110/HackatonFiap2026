@@ -23,6 +23,54 @@ cp .env.example .env          # preencher ANTHROPIC_API_KEY e ROBOFLOW_API_KEY
 > Com pip tradicional, troque `uv pip install` por `pip install` e `uv venv` por
 > `python -m venv .venv`.
 
+## Provedor de LLM (Claude ou OpenAI)
+
+O texto do relatório (resumo executivo e recomendações) pode ser gerado pela
+**Anthropic (Claude, padrão)** ou pela **OpenAI (GPT)** — quem não tem conta na
+Anthropic pode usar a OpenAI. A escolha é por variável de ambiente, **sem
+alterar código**. A detecção de componentes (YOLOv8) é local e não depende do
+provedor.
+
+### Variáveis de ambiente
+
+| Variável | Quando usar | Padrão |
+|---|---|---|
+| `LLM_PROVIDER` | `anthropic` ou `openai` | `anthropic` |
+| `ANTHROPIC_API_KEY` | `LLM_PROVIDER=anthropic` | — |
+| `ANTHROPIC_MODEL` | opcional, sobrescreve o modelo Claude | `claude-sonnet-4-6` |
+| `OPENAI_API_KEY` | `LLM_PROVIDER=openai` | — |
+| `OPENAI_MODEL` | opcional, sobrescreve o modelo OpenAI | `gpt-4o` |
+
+Só a chave do provedor **selecionado** é obrigatória; se ela faltar, o pipeline
+falha com uma mensagem clara.
+
+### Usar o Claude (padrão)
+
+```
+# .env
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+### Usar a OpenAI
+
+Obtenha a chave em [platform.openai.com](https://platform.openai.com/api-keys) e:
+
+```
+# .env
+LLM_PROVIDER=openai
+OPENAI_API_KEY=sk-...
+# OPENAI_MODEL=gpt-4o-mini   # opcional, para custo menor
+```
+
+Depois rode o pipeline normalmente (o Streamlit e a API respeitam o mesmo `.env`):
+
+```bash
+python -m stride.report_generator --input data/test/arquitetura_teste.jpg --pdf
+```
+
+Guia completo em [`docs/provedores_llm.md`](docs/provedores_llm.md).
+
 ## Detecção supervisionada (YOLOv8)
 
 A detecção de componentes usa um modelo **YOLOv8 treinado** (detecção
